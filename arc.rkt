@@ -3,6 +3,9 @@
 (require racket/file
          racket/port
          racket/string
+         racket/include
+         (for-syntax racket/base
+                     racket/port)
          "types.rkt"
          "reader.rkt"
          "eval.rkt"
@@ -15,6 +18,16 @@
          current-arc-env
          arc-to-string)
 
+;; Compile-time reader that reads an entire file into a string syntax literal
+(define-for-syntax (read-all-as-string src in)
+  (let ([s (port->string in)])
+    (if (string=? s "")
+        eof
+        #`(quote #,s))))
+
+;; Embedded copy of library.arc via Racket's include/reader mechanism
+(define embedded-library-arc
+  (include/reader "library.arc" read-all-as-string))
 
 (define current-arc-env (make-parameter #f))
 
@@ -38,12 +51,18 @@
   (current-arc-env ns)
   (current-arc-namespace ns)
   (when load-stdlib?
-    (let* ([this-dir (or (current-load-relative-directory) (current-directory))]
-           [lib-path (build-path this-dir "library.arc")])
-      (if (file-exists? lib-path)
-          (arc-load-file (path->string lib-path) ns)
-          (error 'arc-init "Standard library file library.arc not found"))))
+    (let* ([this-dir (current-load-relative-directory)]
+           [lib-path (and this-dir (build-path this-dir "library.arc"))])
+      (cond
+        [(and lib-path (file-exists? lib-path))
+         (arc-load-file (path->string lib-path) ns)]
+        [(and (string? embedded-library-arc) (> (string-length embedded-library-arc) 0))
+         (arc-eval-string embedded-library-arc ns)]
+        [else
+         (error 'arc-init "Standard library file library.arc not found")])))
+
   ns)
+
 
 (define (arc-repl [env (or (current-arc-env) (arc-init))])
   (printf "Arc Lisp (Racket) 1.0\n")
