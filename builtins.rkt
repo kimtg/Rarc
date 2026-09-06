@@ -310,7 +310,9 @@
                    [(number? x) (to-int x)]
                    [(char? x) (char->integer x)]
                    [else 0])))
-  (bind! "rand" (lambda ([n 1]) (if (exact-integer? n) (random n) (* (random) n))))
+  (bind! "rand" (case-lambda
+                  [() (random)]
+                  [(n) (if (exact-integer? n) (random n) (* (random) n))]))
 
   ;; Object identity & Types
   (bind! "is" (lambda (a b) (if (arc-is a b) 't 'nil)))
